@@ -6,7 +6,6 @@
 from kesslergame import KesslerController
 from typing import Dict, Tuple
 
-
 class TestController(KesslerController):
     def __init__(self):
         """
