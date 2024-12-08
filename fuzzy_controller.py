@@ -16,13 +16,8 @@ import math
 import numpy as np
 import matplotlib as plt
 
-
-
-
 class FuzzyController(KesslerController):
     
-    
-        
     def __init__(self):
         self.eval_frames = 0 #What is this?
 
@@ -85,19 +80,7 @@ class FuzzyController(KesslerController):
         rule19 = ctrl.Rule(bullet_time['S'] & theta_delta['PS'], (ship_turn['PS'], ship_fire['Y']))
         rule20 = ctrl.Rule(bullet_time['S'] & theta_delta['PM'], (ship_turn['PM'], ship_fire['Y']))
         rule21 = ctrl.Rule(bullet_time['S'] & theta_delta['PL'], (ship_turn['PL'], ship_fire['Y']))
-     
-        #DEBUG
-        #bullet_time.view()
-        #theta_delta.view()
-        #ship_turn.view()
-        #ship_fire.view()
-     
-     
         
-        # Declare the fuzzy controller, add the rules 
-        # This is an instance variable, and thus available for other methods in the same object. See notes.                         
-        # self.targeting_control = ctrl.ControlSystem([rule1, rule2, rule3, rule4, rule5, rule6, rule7, rule8, rule9, rule10, rule11, rule12, rule13, rule14, rule15])
-             
         self.targeting_control = ctrl.ControlSystem()
         self.targeting_control.addrule(rule1)
         self.targeting_control.addrule(rule2)
@@ -121,8 +104,6 @@ class FuzzyController(KesslerController):
         self.targeting_control.addrule(rule20)
         self.targeting_control.addrule(rule21)
 
-        
-        
 
     def actions(self, ship_state: Dict, game_state: Dict) -> Tuple[float, float, bool]:
         """
@@ -237,12 +218,45 @@ class FuzzyController(KesslerController):
         # And return your three outputs to the game simulation. Controller algorithm complete.
         thrust = 0.0
 
+
+        ### movement
+        max_speed = 80.0    # Maximum speed we allow the ship to go
+        safe_distance = 120.0  # Distance at which we consider the ship "safe"
+        too_close_distance = 70.0  # If the ship is closer than this, it should move backwards
+        thrust_forward = 200.0
+        thrust_backward = -150.0
+        thrust_none = 0.0
+
+        # Compute current speed
+        curr_speed = (ship_state["velocity"][0]**2 + ship_state["velocity"][1]**2)**0.5
+
+        # Compute distance to closest asteroid
+        dist_to_asteroid = closest_asteroid["dist"]
+
+        # Decide on thrust
+        if dist_to_asteroid < too_close_distance:
+            # Too close, go backwards
+            thrust = thrust_backward
+        elif dist_to_asteroid < safe_distance:
+            # Within safe range, don't move
+            thrust = thrust_none
+        else:
+            # Far away, try to move closer if not at max speed
+            if curr_speed < max_speed:
+                thrust = thrust_forward
+            else:
+                # At or above max speed, no thrust
+                thrust = thrust_none
+        ### end movement
+
+
         drop_mine = False
         
         self.eval_frames +=1
         
+        # print(game_state)
         #DEBUG
-        print(thrust, bullet_t, shooting_theta, turn_rate, fire)
+        # print(thrust, bullet_t, shooting_theta, turn_rate, fire)
         
         return thrust, turn_rate, fire, drop_mine
 
