@@ -108,6 +108,8 @@ class FuzzyController(KesslerController):
         movement_distance = ctrl.Antecedent(np.arange(0, 200, 1), 'distance')  # Adjust the range as needed
         movement_ship_speed = ctrl.Antecedent(np.arange(0, 120, 1), 'ship_speed')  # Maximum ship speed
         movement_thrust = ctrl.Consequent(np.arange(-300, 301, 1), 'thrust')  # Thrust range (-200 for backward, 200 for forward)
+        mine_distance = ctrl.Antecedent(np.arange(0, 200, 1), 'mine_distance')  # Adjust range as needed
+
 
         # Define fuzzy sets for distance
         movement_distance['too_close'] = fuzz.zmf(movement_distance.universe, 0, 80)
@@ -124,15 +126,20 @@ class FuzzyController(KesslerController):
         movement_thrust['none'] = fuzz.trimf(movement_thrust.universe, [-150, 0, 150])
         movement_thrust['forward'] = fuzz.trimf(movement_thrust.universe, [150, 300, 300])
 
+        # Define fuzzy sets for mine distance
+        mine_distance['close'] = fuzz.zmf(mine_distance.universe, 0, 150)
+        mine_distance['far'] = fuzz.smf(mine_distance.universe, 150, 200)
+
         # Define fuzzy movement rules
         movement_rule1 = ctrl.Rule(movement_distance['too_close'], movement_thrust['backward'])
         movement_rule2 = ctrl.Rule(movement_distance['safe'], movement_thrust['none'])
         movement_rule3 = ctrl.Rule(movement_distance['far'] & movement_ship_speed['slow'], movement_thrust['forward'])
         movement_rule4 = ctrl.Rule(movement_distance['far'] & movement_ship_speed['moderate'], movement_thrust['forward'])
         movement_rule5 = ctrl.Rule(movement_ship_speed['fast'], movement_thrust['none'])
+        movement_rule6 = ctrl.Rule(mine_distance['close'], movement_thrust['backward'])
 
         # Create control system and simulation
-        movement_control = ctrl.ControlSystem([movement_rule1, movement_rule2, movement_rule3, movement_rule4, movement_rule5])
+        movement_control = ctrl.ControlSystem([movement_rule1, movement_rule2, movement_rule3, movement_rule4, movement_rule5, movement_rule6])
         self.movement_sim = ctrl.ControlSystemSimulation(movement_control)
 
 
@@ -327,8 +334,19 @@ class FuzzyController(KesslerController):
         curr_speed = (ship_state["velocity"][0]**2 + ship_state["velocity"][1]**2)**0.5
 
         ### movement
+
+        # Calculate the distance to the closest mine
+        closest_mine_dist = float('inf')  # Initialize to a large value
+        for mine in game_state.get("mines", []): 
+            curr_mine_dist = math.sqrt(
+                (ship_state["position"][0] - mine["position"][0])**2 +
+                (ship_state["position"][1] - mine["position"][1])**2
+            )
+            closest_mine_dist = min(closest_mine_dist, curr_mine_dist)  # Update if a closer mine is found
+
         self.movement_sim.input['distance'] = closest_asteroid['dist']
         self.movement_sim.input['ship_speed'] = curr_speed
+        self.movement_sim.input['mine_distance'] = closest_mine_dist
 
         try:
             self.movement_sim.compute()
