@@ -105,6 +105,54 @@ class FuzzyController(KesslerController):
         self.targeting_control.addrule(rule21)
 
 
+        ### INITIALIZE FUZZY SYSTEM FOR DROPPING MINES 
+        # Distance to nearest asteroid
+        distance = ctrl.Antecedent(np.arange(0, 300, 1), 'distance')
+        distance['near'] = fuzz.zmf(distance.universe, 0, 70)
+        distance['medium'] = fuzz.trimf(distance.universe, [50, 120, 200])
+        distance['far'] = fuzz.smf(distance.universe, 150, 300)
+
+        # Relative velocity
+        relative_velocity = ctrl.Antecedent(np.arange(-200, 200, 1), 'relative_velocity')
+        relative_velocity['approaching'] = fuzz.zmf(relative_velocity.universe, -200, -50)
+        relative_velocity['static'] = fuzz.trimf(relative_velocity.universe, [-100, 0, 100])
+        relative_velocity['departing'] = fuzz.smf(relative_velocity.universe, 50, 200)
+
+        # Ship speed
+        ship_speed = ctrl.Antecedent(np.arange(0, 100, 1), 'ship_speed')
+        ship_speed['slow'] = fuzz.zmf(ship_speed.universe, 0, 30)
+        ship_speed['medium'] = fuzz.trimf(ship_speed.universe, [20, 50, 80])
+        ship_speed['fast'] = fuzz.smf(ship_speed.universe, 60, 100)
+
+        # Drop mine decision
+        drop_mine = ctrl.Consequent(np.arange(-1, 1, 0.1), 'drop_mine')
+        drop_mine['no'] = fuzz.zmf(drop_mine.universe, -1, 0)
+        drop_mine['yes'] = fuzz.smf(drop_mine.universe, 0, 1)
+
+        # Mine rules
+        mrule1 = ctrl.Rule(distance['near'] & relative_velocity['approaching'], drop_mine['yes'])
+        mrule2 = ctrl.Rule(distance['near'] & relative_velocity['static'], drop_mine['yes'])
+        mrule3 = ctrl.Rule(distance['medium'] & ship_speed['slow'], drop_mine['no'])
+        mrule4 = ctrl.Rule(distance['far'], drop_mine['no'])
+        mrule5 = ctrl.Rule(ship_speed['fast'] & relative_velocity['departing'], drop_mine['no'])
+        mrule6 = ctrl.Rule(distance['near'] & ship_speed['slow'], drop_mine['no'])
+        mrule7 = ctrl.Rule(ship_speed['slow'], drop_mine['no'])
+        mrule8 = ctrl.Rule(ship_speed['fast'] & relative_velocity['approaching'], drop_mine['yes'])
+        mrule9 = ctrl.Rule(distance['medium'] & ship_speed['fast'], drop_mine['yes'])
+
+        self.mine_control = ctrl.ControlSystem()
+        self.mine_control.addrule(mrule1)
+        self.mine_control.addrule(mrule2)
+        self.mine_control.addrule(mrule3)
+        self.mine_control.addrule(mrule4)
+        self.mine_control.addrule(mrule5)
+        self.mine_control.addrule(mrule6)
+        self.mine_control.addrule(mrule7)
+        self.mine_control.addrule(mrule8)
+        self.mine_control.addrule(mrule9)
+
+
+
     def actions(self, ship_state: Dict, game_state: Dict) -> Tuple[float, float, bool]:
         """
         Method processed each time step by this controller.
@@ -249,10 +297,28 @@ class FuzzyController(KesslerController):
                 thrust = thrust_none
         ### end movement
 
-
-        drop_mine = False
+        ### Mine drop control system simulation, input, and computation
+        dropping_mines = ctrl.ControlSystemSimulation(self.mine_control, flush_after_run=1)
         
-        self.eval_frames +=1
+        # Calculate relative velocity
+        rel_vel = (
+            ship_state["velocity"][0] * closest_asteroid["aster"]["velocity"][0] +
+            ship_state["velocity"][1] * closest_asteroid["aster"]["velocity"][1]
+        )
+
+        dropping_mines.input['distance'] = closest_asteroid['dist']
+        dropping_mines.input['relative_velocity'] = rel_vel
+        dropping_mines.input['ship_speed'] = curr_speed
+
+        # Compute the fuzzy logic
+        try:
+            dropping_mines.compute()
+            drop_mine_decision = dropping_mines.output['drop_mine']
+            drop_mine = drop_mine_decision > 0  # Threshold output
+        except KeyError as e:
+            print("KeyError:", e)
+            print("Dropping mine outputs:", dropping_mines.output)
+            drop_mine = False  # Default fallback
         
         # print(game_state)
         #DEBUG
