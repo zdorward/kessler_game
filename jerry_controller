@@ -269,7 +269,7 @@ class FuzzyController(KesslerController):
 
         ### movement
         max_speed = 80.0    # Maximum speed we allow the ship to go
-        safe_distance = 130.0  # Distance at which we consider the ship "safe"
+        safe_distance = 120.0  # Distance at which we consider the ship "safe"
         too_close_distance = 70.0  # If the ship is closer than this, it should move backwards
         thrust_forward = 200.0
         thrust_backward = -150.0
