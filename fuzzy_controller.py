@@ -108,7 +108,7 @@ class FuzzyController(KesslerController):
         movement_distance = ctrl.Antecedent(np.arange(0, 200, 1), 'distance')  # Adjust the range as needed
         movement_ship_speed = ctrl.Antecedent(np.arange(0, 120, 1), 'ship_speed')  # Maximum ship speed
         movement_thrust = ctrl.Consequent(np.arange(-300, 301, 1), 'thrust')  # Thrust range (-200 for backward, 200 for forward)
-        mine_distance = ctrl.Antecedent(np.arange(0, 200, 1), 'mine_distance')  # Adjust range as needed
+        mine_distance = ctrl.Antecedent(np.arange(0, 250, 1), 'mine_distance')  # Adjust range as needed
 
 
         # Define fuzzy sets for distance
@@ -127,14 +127,14 @@ class FuzzyController(KesslerController):
         movement_thrust['forward'] = fuzz.trimf(movement_thrust.universe, [150, 300, 300])
 
         # Define fuzzy sets for mine distance
-        mine_distance['close'] = fuzz.zmf(mine_distance.universe, 0, 150)
-        mine_distance['far'] = fuzz.smf(mine_distance.universe, 150, 200)
+        mine_distance['close'] = fuzz.zmf(mine_distance.universe, 0, 200)
+        mine_distance['far'] = fuzz.smf(mine_distance.universe, 200, 250)
 
         # Define fuzzy movement rules
         movement_rule1 = ctrl.Rule(movement_distance['too_close'], movement_thrust['backward'])
         movement_rule2 = ctrl.Rule(movement_distance['safe'], movement_thrust['none'])
-        movement_rule3 = ctrl.Rule(movement_distance['far'] & movement_ship_speed['slow'], movement_thrust['forward'])
-        movement_rule4 = ctrl.Rule(movement_distance['far'] & movement_ship_speed['moderate'], movement_thrust['forward'])
+        movement_rule3 = ctrl.Rule(movement_distance['far'] & movement_ship_speed['slow'] & mine_distance['far'], movement_thrust['forward'])
+        movement_rule4 = ctrl.Rule(movement_distance['far'] & movement_ship_speed['moderate'] & mine_distance['far'], movement_thrust['forward'])
         movement_rule5 = ctrl.Rule(movement_ship_speed['fast'], movement_thrust['none'])
         movement_rule6 = ctrl.Rule(mine_distance['close'], movement_thrust['backward'])
 
