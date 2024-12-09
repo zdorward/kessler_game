@@ -366,7 +366,6 @@ class FuzzyController(KesslerController):
         except Exception as e:
             print("Error during fuzzy logic computation:", e)
             drop_mine = False  # Fallback if computation fails
-
         
         # print(game_state)
         #DEBUG
