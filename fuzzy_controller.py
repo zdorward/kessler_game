@@ -313,12 +313,16 @@ class FuzzyController(KesslerController):
         # Compute the fuzzy logic
         try:
             dropping_mines.compute()
-            drop_mine_decision = dropping_mines.output['drop_mine']
-            drop_mine = drop_mine_decision > 0  # Threshold output
-        except KeyError as e:
-            print("KeyError:", e)
-            print("Dropping mine outputs:", dropping_mines.output)
-            drop_mine = False  # Default fallback
+            # Safely check for the output key
+            if 'drop_mine' in dropping_mines.output:
+                drop_mine_decision = dropping_mines.output['drop_mine']
+                drop_mine = drop_mine_decision > 0
+            else:
+                #print("Warning: 'drop_mine' not found in outputs.")
+                drop_mine = False
+        except Exception as e:
+            print("Error during fuzzy logic computation:", e)
+            drop_mine = False  # Fallback if computation fails
         
         # print(game_state)
         #DEBUG
