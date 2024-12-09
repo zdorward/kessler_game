@@ -104,6 +104,37 @@ class FuzzyController(KesslerController):
         self.targeting_control.addrule(rule20)
         self.targeting_control.addrule(rule21)
 
+        ### MOVEMENT FUZZY LOGIC
+        movement_distance = ctrl.Antecedent(np.arange(0, 200, 1), 'distance')  # Adjust the range as needed
+        movement_ship_speed = ctrl.Antecedent(np.arange(0, 120, 1), 'ship_speed')  # Maximum ship speed
+        movement_thrust = ctrl.Consequent(np.arange(-300, 301, 1), 'thrust')  # Thrust range (-200 for backward, 200 for forward)
+
+        # Define fuzzy sets for distance
+        movement_distance['too_close'] = fuzz.zmf(movement_distance.universe, 0, 80)
+        movement_distance['safe'] = fuzz.trimf(movement_distance.universe, [80, 100, 130])
+        movement_distance['far'] = fuzz.smf(movement_distance.universe, 130, 200)
+
+        # Define fuzzy sets for ship speed
+        movement_ship_speed['slow'] = fuzz.zmf(movement_ship_speed.universe, 0, 30)
+        movement_ship_speed['moderate'] = fuzz.trimf(movement_ship_speed.universe, [30, 50, 90])
+        movement_ship_speed['fast'] = fuzz.smf(movement_ship_speed.universe, 90, 120)
+
+        # Define fuzzy sets for thrust
+        movement_thrust['backward'] = fuzz.trimf(movement_thrust.universe, [-300, -300, -150])
+        movement_thrust['none'] = fuzz.trimf(movement_thrust.universe, [-150, 0, 150])
+        movement_thrust['forward'] = fuzz.trimf(movement_thrust.universe, [150, 300, 300])
+
+        # Define fuzzy movement rules
+        movement_rule1 = ctrl.Rule(movement_distance['too_close'], movement_thrust['backward'])
+        movement_rule2 = ctrl.Rule(movement_distance['safe'], movement_thrust['none'])
+        movement_rule3 = ctrl.Rule(movement_distance['far'] & movement_ship_speed['slow'], movement_thrust['forward'])
+        movement_rule4 = ctrl.Rule(movement_distance['far'] & movement_ship_speed['moderate'], movement_thrust['forward'])
+        movement_rule5 = ctrl.Rule(movement_ship_speed['fast'], movement_thrust['none'])
+
+        # Create control system and simulation
+        movement_control = ctrl.ControlSystem([movement_rule1, movement_rule2, movement_rule3, movement_rule4, movement_rule5])
+        self.movement_sim = ctrl.ControlSystemSimulation(movement_control)
+
 
         ### INITIALIZE FUZZY SYSTEM FOR DROPPING MINES 
         # Distance to nearest asteroid
@@ -293,37 +324,19 @@ class FuzzyController(KesslerController):
                
         # And return your three outputs to the game simulation. Controller algorithm complete.
         thrust = 0.0
-
-
-        ### movement
-        max_speed = 80.0    # Maximum speed we allow the ship to go
-        safe_distance = 130.0  # Distance at which we consider the ship "safe"
-        too_close_distance = 70.0  # If the ship is closer than this, it should move backwards
-        thrust_forward = 200.0
-        thrust_backward = -150.0
-        thrust_none = 0.0
-
-        # Compute current speed
         curr_speed = (ship_state["velocity"][0]**2 + ship_state["velocity"][1]**2)**0.5
 
-        # Compute distance to closest asteroid
-        dist_to_asteroid = closest_asteroid["dist"]
+        ### movement
+        self.movement_sim.input['distance'] = closest_asteroid['dist']
+        self.movement_sim.input['ship_speed'] = curr_speed
 
-        # Decide on thrust
-        if dist_to_asteroid < too_close_distance:
-            # Too close, go backwards
-            thrust = thrust_backward
-        elif dist_to_asteroid < safe_distance:
-            # Within safe range, don't move
-            thrust = thrust_none
-        else:
-            # Far away, try to move closer if not at max speed
-            if curr_speed < max_speed:
-                thrust = thrust_forward
-            else:
-                # At or above max speed, no thrust
-                thrust = thrust_none
-        ### end movement
+        try:
+            self.movement_sim.compute()
+            thrust = self.movement_sim.output['thrust']
+        except Exception as e:
+            print("Error during movement fuzzy logic computation:", e)
+            thrust = 0.0  # Fallback thrust
+
 
         ### Mine drop control system simulation, input, and computation
         dropping_mines = ctrl.ControlSystemSimulation(self.mine_control, flush_after_run=1)
