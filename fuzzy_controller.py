@@ -20,7 +20,7 @@ class FuzzyController(KesslerController):
     
     def __init__(self):
         self.eval_frames = 0 #What is this?
-
+        self.time_since_last_mine = 0 
         # self.targeting_control is the targeting rulebase, which is static in this controller.      
         # Declare variables
         bullet_time = ctrl.Antecedent(np.arange(0,1.0,0.002), 'bullet_time')
@@ -124,21 +124,41 @@ class FuzzyController(KesslerController):
         ship_speed['medium'] = fuzz.trimf(ship_speed.universe, [20, 50, 80])
         ship_speed['fast'] = fuzz.smf(ship_speed.universe, 60, 100)
 
+        # Time since last mine drop (in game frames which is ~1800 for a 60 second game)
+        time_since_mine = ctrl.Antecedent(np.arange(0, 1800, 1), 'time_since_mine')
+        time_since_mine['short'] = fuzz.trimf(time_since_mine.universe, [0, 0, 600])
+        time_since_mine['medium'] = fuzz.trimf(time_since_mine.universe, [500, 600, 900])
+        time_since_mine['long'] = fuzz.trimf(time_since_mine.universe, [800, 1000, 1800])
+
         # Drop mine decision
         drop_mine = ctrl.Consequent(np.arange(-1, 1, 0.1), 'drop_mine')
         drop_mine['no'] = fuzz.zmf(drop_mine.universe, -1, 0)
         drop_mine['yes'] = fuzz.smf(drop_mine.universe, 0, 1)
 
+        # Number of nearby asteroids
+        asteroid_density = ctrl.Antecedent(np.arange(0, 15, 1), 'asteroid_density')
+        asteroid_density['low'] = fuzz.zmf(asteroid_density.universe, 0, 4)
+        asteroid_density['medium'] = fuzz.trimf(asteroid_density.universe, [1, 8, 11])
+        asteroid_density['high'] = fuzz.smf(asteroid_density.universe, 7, 15)
+
+
         # Mine rules
         mrule1 = ctrl.Rule(distance['near'] & relative_velocity['approaching'], drop_mine['yes'])
         mrule2 = ctrl.Rule(distance['near'] & relative_velocity['static'], drop_mine['yes'])
-        mrule3 = ctrl.Rule(distance['medium'] & ship_speed['slow'], drop_mine['no'])
-        mrule4 = ctrl.Rule(distance['far'], drop_mine['no'])
+        mrule3 = ctrl.Rule(distance['medium'] & ship_speed['slow'] | time_since_mine['short'], drop_mine['no'])
+        mrule4 = ctrl.Rule(distance['far'], drop_mine['yes'])
         mrule5 = ctrl.Rule(ship_speed['fast'] & relative_velocity['departing'], drop_mine['no'])
-        mrule6 = ctrl.Rule(distance['near'] & ship_speed['slow'], drop_mine['no'])
+        mrule6 = ctrl.Rule(distance['far'] & ship_speed['slow'] | time_since_mine['short'], drop_mine['no'])
         mrule7 = ctrl.Rule(ship_speed['slow'], drop_mine['no'])
         mrule8 = ctrl.Rule(ship_speed['fast'] & relative_velocity['approaching'], drop_mine['yes'])
         mrule9 = ctrl.Rule(distance['medium'] & ship_speed['fast'], drop_mine['yes'])
+        mrule10 = ctrl.Rule(distance['medium'], drop_mine['yes'])
+        mrule11 = ctrl.Rule(time_since_mine['long'], drop_mine['yes'])
+        mrule12 = ctrl.Rule(time_since_mine['short'], drop_mine['no'])
+        mrule13 = ctrl.Rule(time_since_mine['medium'] & ship_speed['fast'], drop_mine['no'])
+        mrule_surrounded1 = ctrl.Rule(asteroid_density['low'], drop_mine['no'])
+        mrule_surrounded2 = ctrl.Rule(asteroid_density['medium'], drop_mine['no'])
+        mrule_surrounded3 = ctrl.Rule(asteroid_density['high'], drop_mine['yes'])
 
         self.mine_control = ctrl.ControlSystem()
         self.mine_control.addrule(mrule1)
@@ -150,6 +170,13 @@ class FuzzyController(KesslerController):
         self.mine_control.addrule(mrule7)
         self.mine_control.addrule(mrule8)
         self.mine_control.addrule(mrule9)
+        self.mine_control.addrule(mrule10)
+        self.mine_control.addrule(mrule11)
+        self.mine_control.addrule(mrule12)
+        self.mine_control.addrule(mrule13)
+        self.mine_control.addrule(mrule_surrounded1)
+        self.mine_control.addrule(mrule_surrounded2)
+        self.mine_control.addrule(mrule_surrounded3)
 
 
 
@@ -178,6 +205,7 @@ class FuzzyController(KesslerController):
         ship_pos_x = ship_state["position"][0]     # See src/kesslergame/ship.py in the KesslerGame Github
         ship_pos_y = ship_state["position"][1]       
         closest_asteroid = None
+        self.time_since_last_mine += 1
         
         for a in game_state["asteroids"]:
             #Loop through all asteroids, find minimum Eudlidean distance
@@ -305,20 +333,40 @@ class FuzzyController(KesslerController):
             ship_state["velocity"][0] * closest_asteroid["aster"]["velocity"][0] +
             ship_state["velocity"][1] * closest_asteroid["aster"]["velocity"][1]
         )
+        # Define the radius for "nearby" asteroids
+        surround_radius = 75.0  # Adjust based on game scale
+
+        # Count asteroids within the radius
+        nearby_asteroids = sum(
+            1 for a in game_state["asteroids"]
+            if math.sqrt((ship_state["position"][0] - a["position"][0])**2 +
+                        (ship_state["position"][1] - a["position"][1])**2) <= surround_radius
+        )
 
         dropping_mines.input['distance'] = closest_asteroid['dist']
         dropping_mines.input['relative_velocity'] = rel_vel
         dropping_mines.input['ship_speed'] = curr_speed
+        dropping_mines.input['time_since_mine'] = self.time_since_last_mine
+        dropping_mines.input['asteroid_density'] = nearby_asteroids
 
-        # Compute the fuzzy logic
+
+        # Compute fuzzy logic
         try:
             dropping_mines.compute()
-            drop_mine_decision = dropping_mines.output['drop_mine']
-            drop_mine = drop_mine_decision > 0  # Threshold output
-        except KeyError as e:
-            print("KeyError:", e)
-            print("Dropping mine outputs:", dropping_mines.output)
-            drop_mine = False  # Default fallback
+            # Safely check for the output key
+            if 'drop_mine' in dropping_mines.output:
+                drop_mine_decision = dropping_mines.output['drop_mine']
+                drop_mine = drop_mine_decision > 0
+                if drop_mine:
+                    #print(self.time_since_last_mine)
+                    self.time_since_last_mine = 0 # Resets the timer when a mine is dropped
+            else:
+                #print("Warning: 'drop_mine' not found in outputs.")
+                drop_mine = False
+        except Exception as e:
+            print("Error during fuzzy logic computation:", e)
+            drop_mine = False  # Fallback if computation fails
+
         
         # print(game_state)
         #DEBUG
