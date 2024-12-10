@@ -6,19 +6,6 @@ var comm_websocket_adapter = function (comm) {
     // socket, so there is still some room for performance tuning.
     var ws = {};
 
-    ws.binaryType = comm.kernel.ws.binaryType;
-    ws.readyState = comm.kernel.ws.readyState;
-    function updateReadyState(_event) {
-        if (comm.kernel.ws) {
-            ws.readyState = comm.kernel.ws.readyState;
-        } else {
-            ws.readyState = 3; // Closed state.
-        }
-    }
-    comm.kernel.ws.addEventListener('open', updateReadyState);
-    comm.kernel.ws.addEventListener('close', updateReadyState);
-    comm.kernel.ws.addEventListener('error', updateReadyState);
-
     ws.close = function () {
         comm.close();
     };
@@ -29,14 +16,8 @@ var comm_websocket_adapter = function (comm) {
     // Register the callback with on_msg.
     comm.on_msg(function (msg) {
         //console.log('receiving', msg['content']['data'], msg);
-        var data = msg['content']['data'];
-        if (data['blob'] !== undefined) {
-            data = {
-                data: new Blob(msg['buffers'], { type: data['blob'] }),
-            };
-        }
         // Pass the mpl event to the overridden (by mpl) onmessage function.
-        ws.onmessage(data);
+        ws.onmessage(msg['content']['data']);
     });
     return ws;
 };
@@ -228,6 +209,11 @@ mpl.figure.prototype._canvas_extra_style = function (el) {
 };
 
 mpl.figure.prototype._key_event_extra = function (event, _name) {
+    var manager = IPython.notebook.keyboard_manager;
+    if (!manager) {
+        manager = IPython.keyboard_manager;
+    }
+
     // Check for shift+enter
     if (event.shiftKey && event.which === 13) {
         this.canvas_div.blur();

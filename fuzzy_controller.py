@@ -7,7 +7,8 @@ from pickle import FALSE
 # Please see the Kessler Game Development Guide by Dr. Scott Dick for a
 #   detailed discussion of this source code.
 
-from kesslergame import KesslerController # In Eclipse, the name of the library is kesslergame, not src.kesslergame
+from kesslergame import KesslerController, Scenario, KesslerGame, GraphicsType, TrainerEnvironment # In Eclipse, the name of the library is kesslergame, not src.kesslergame
+import time
 from typing import Dict, Tuple
 from cmath import sqrt
 import skfuzzy as fuzz
@@ -18,11 +19,62 @@ import numpy as np
 import matplotlib as plt
 import EasyGA
 
+def gene_generation():
+    sorted_nums = np.sort(np.random.uniform(-0.01, 0.11, 9)).tolist()
+    return [[sorted_nums[0], sorted_nums[1], sorted_nums[2]],
+            [sorted_nums[3], sorted_nums[4], sorted_nums[5]],
+            [sorted_nums[6], sorted_nums[7], sorted_nums[8]]]
+    
+
+def fitness(chromosome):
+    chromosome = [gene.value for gene in chromosome]
+    controller = FuzzyController(chromosome)
+    try:
+        my_test_scenario = Scenario(name='Test Scenario',
+                                    num_asteroids=5,
+                                    ship_states=[
+                                        {'position': (400, 400), 'angle': 90, 'lives': 3, 'team': 1},
+                                    ],
+                                    map_size=(1000, 800),
+                                    time_limit=60,
+                                    ammo_limit_multiplier=0,
+                                    stop_if_no_ammo=False)
+
+        game_settings = {'perf_tracker': True,
+                        'graphics_type': GraphicsType.Tkinter,
+                        'realtime_multiplier': 1,
+                        'graphics_obj': None}
+        game = TrainerEnvironment(settings=game_settings) # Use this for max-speed, no-graphics simulation WITHOUT GRAPHICS
+        pre = time.perf_counter()
+        score, perf_data = game.run(scenario=my_test_scenario, controllers = [controller, controller])
+
+        total_asteroids_hit = [team.asteroids_hit for team in score.teams]
+
+        return total_asteroids_hit[0]
+
+    except Exception as e:
+        print(f"Exception in the fitness function: {e}")
+
+def fuzzy_algorithm():
+    ga = EasyGA.GA()
+    ga.chromosome_length = 1
+    ga.population_size = 10
+    ga.target_fitness_type = 'max'
+    ga.generation_goal = 5
+    ga.fitness_function_impl = fitness
+    ga.gene_impl = lambda: gene_generation()
+    ga.evolve()
+    # best chromosome
+    return [gene.value for gene in ga.population[0]]
+    
 class FuzzyController(KesslerController):
     
-    def __init__(self):
+    def __init__(self, chromosome=None):
+        
         self.eval_frames = 0 #What is this?
-        best_chromosome = fuzzy_controller()
+        if chromosome is None:
+            chromosome = fuzzy_algorithm()
+        best_chromosome = chromosome
 
         # self.targeting_control is the targeting rulebase, which is static in this controller.      
         # Declare variables
@@ -35,9 +87,9 @@ class FuzzyController(KesslerController):
         # bullet_time['S'] = fuzz.trimf(bullet_time.universe,[0,0,0.05])
         # bullet_time['M'] = fuzz.trimf(bullet_time.universe, [0,0.05,0.1])
         # bullet_time['L'] = fuzz.smf(bullet_time.universe,0.0,0.1)
-        self.bullet_time['S'] = fuzz.trimf(self.bullet_time.universe, best_chromosome[0][0])
-        self.bullet_time['M'] = fuzz.trimf(self.bullet_time.universe, best_chromosome[0][1])
-        self.bullet_time['L'] = fuzz.trimf(self.bullet_time.universe, best_chromosome[0][2])
+        bullet_time['S'] = fuzz.trimf(bullet_time.universe, best_chromosome[0][0])
+        bullet_time['M'] = fuzz.trimf(bullet_time.universe, best_chromosome[0][1])
+        bullet_time['L'] = fuzz.trimf(bullet_time.universe, best_chromosome[0][2])
         
         # Declare fuzzy sets for theta_delta (degrees of turn needed to reach the calculated firing angle)
         # Hard-coded for a game step of 1/30 seconds
@@ -335,49 +387,6 @@ class FuzzyController(KesslerController):
         self.eval_frames += 1
         
         return thrust, turn_rate, fire, drop_mine
-
-    def gene_generation():
-        S = sorted([random.uniform(0, 0.033) for _ in range(2)])
-        S.insert(0, -0.01)
-        
-        M = [random.uniform(min(S), max(S))]
-        M.append(sorted([random.uniform(min(S), 0.066) for _ in range(2)]))
-        
-        L = [random.uniform(min(M), max(M))]
-        L.append(random.uniform(min(M), 0.1))
-        L.sort()
-        L.append(0.11)
-        return [S, M, L]
-
-    def fitness(chromosome):
-        chromosome = [gene.value for gene in chromosome]
-        controller = FuzzyController(chromosome)
-        my_test_scenario = Scenario(name='Test Scenario',
-                            num_asteroids=10,
-                            ship_states=[
-                                {'position': (400, 400), 'angle': 90, 'lives': 3, 'team': 1, "mines_remaining": 3},
-                            ],
-                            map_size=(1000, 800),
-                            time_limit=60,
-                            ammo_limit_multiplier=0,
-                            stop_if_no_ammo=False)
-        total_score = 0
-        while not score.stop_reason:
-            score, perf_data = game.run(scenario=my_test_scenario, controllers=[controller, controller])
-        total_score += score
-        return total_score
-
-    def fuzzy_algorithm():
-        ga = EasyGA.GA()
-        ga.chromosome_length = 1
-        ga.population_size = 10
-        ga.target_fitness_type = 'max'
-        ga.generation_goal = 5
-        ga.fitness_function_impl = fitness
-        ga.gene_impl = lambda: gene_generation()
-        ga.evolve()
-        # best chromosome
-        return [gene.value for gene in ga.population[0]]
     
     @property
     def name(self) -> str:
