@@ -20,9 +20,9 @@ import EasyGA
 
 class FuzzyController(KesslerController):
     
-    def __init__(self, chromosome):
+    def __init__(self):
         self.eval_frames = 0 #What is this?
-        self.chromosome = chromosome
+        best_chromosome = fuzzy_controller()
 
         # self.targeting_control is the targeting rulebase, which is static in this controller.      
         # Declare variables
@@ -35,9 +35,9 @@ class FuzzyController(KesslerController):
         # bullet_time['S'] = fuzz.trimf(bullet_time.universe,[0,0,0.05])
         # bullet_time['M'] = fuzz.trimf(bullet_time.universe, [0,0.05,0.1])
         # bullet_time['L'] = fuzz.smf(bullet_time.universe,0.0,0.1)
-        self.bullet_time['S'] = fuzz.trimf(self.bullet_time.universe, chromosome[0][0])
-        self.bullet_time['M'] = fuzz.trimf(self.bullet_time.universe, chromosome[0][1])
-        self.bullet_time['L'] = fuzz.trimf(self.bullet_time.universe, chromosome[0][2])
+        self.bullet_time['S'] = fuzz.trimf(self.bullet_time.universe, best_chromosome[0][0])
+        self.bullet_time['M'] = fuzz.trimf(self.bullet_time.universe, best_chromosome[0][1])
+        self.bullet_time['L'] = fuzz.trimf(self.bullet_time.universe, best_chromosome[0][2])
         
         # Declare fuzzy sets for theta_delta (degrees of turn needed to reach the calculated firing angle)
         # Hard-coded for a game step of 1/30 seconds
