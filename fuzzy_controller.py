@@ -13,13 +13,16 @@ from cmath import sqrt
 import skfuzzy as fuzz
 from skfuzzy import control as ctrl
 import math
+import random
 import numpy as np
 import matplotlib as plt
+import EasyGA
 
 class FuzzyController(KesslerController):
     
-    def __init__(self):
+    def __init__(self, chromosome):
         self.eval_frames = 0 #What is this?
+        self.chromosome = chromosome
 
         # self.targeting_control is the targeting rulebase, which is static in this controller.      
         # Declare variables
@@ -29,9 +32,12 @@ class FuzzyController(KesslerController):
         ship_fire = ctrl.Consequent(np.arange(-1,1,0.1), 'ship_fire')
         
         #Declare fuzzy sets for bullet_time (how long it takes for the bullet to reach the intercept point)
-        bullet_time['S'] = fuzz.trimf(bullet_time.universe,[0,0,0.05])
-        bullet_time['M'] = fuzz.trimf(bullet_time.universe, [0,0.05,0.1])
-        bullet_time['L'] = fuzz.smf(bullet_time.universe,0.0,0.1)
+        # bullet_time['S'] = fuzz.trimf(bullet_time.universe,[0,0,0.05])
+        # bullet_time['M'] = fuzz.trimf(bullet_time.universe, [0,0.05,0.1])
+        # bullet_time['L'] = fuzz.smf(bullet_time.universe,0.0,0.1)
+        self.bullet_time['S'] = fuzz.trimf(self.bullet_time.universe, chromosome[0][0])
+        self.bullet_time['M'] = fuzz.trimf(self.bullet_time.universe, chromosome[0][1])
+        self.bullet_time['L'] = fuzz.trimf(self.bullet_time.universe, chromosome[0][2])
         
         # Declare fuzzy sets for theta_delta (degrees of turn needed to reach the calculated firing angle)
         # Hard-coded for a game step of 1/30 seconds
@@ -150,8 +156,7 @@ class FuzzyController(KesslerController):
         self.mine_control.addrule(mrule7)
         self.mine_control.addrule(mrule8)
         self.mine_control.addrule(mrule9)
-
-
+        
 
     def actions(self, ship_state: Dict, game_state: Dict) -> Tuple[float, float, bool]:
         """
@@ -268,11 +273,11 @@ class FuzzyController(KesslerController):
 
 
         ### movement
-        max_speed = 80.0    # Maximum speed we allow the ship to go
+        max_speed = 200.0    # Maximum speed we allow the ship to go
         safe_distance = 130.0  # Distance at which we consider the ship "safe"
         too_close_distance = 70.0  # If the ship is closer than this, it should move backwards
-        thrust_forward = 200.0
-        thrust_backward = -150.0
+        thrust_forward = 400.0
+        thrust_backward = -300.0
         thrust_none = 0.0
 
         # Compute current speed
@@ -327,9 +332,44 @@ class FuzzyController(KesslerController):
         # print(game_state)
         #DEBUG
         # print(thrust, bullet_t, shooting_theta, turn_rate, fire)
+        self.eval_frames += 1
         
         return thrust, turn_rate, fire, drop_mine
 
+    def gene_generation():
+        S = sorted([random.uniform(0, 0.033) for _ in range(2)])
+        S.insert(0, -0.01)
+        
+        M = [random.uniform(min(S), max(S))]
+        M.append(sorted([random.uniform(min(S), 0.066) for _ in range(2)]))
+        
+        L = [random.uniform(min(M), max(M))]
+        L.append(random.uniform(min(M), 0.1))
+        L.sort()
+        L.append(0.11)
+        return [S, M, L]
+
+    def fitness(chromosome):
+        chromosome = [gene.value for gene in chromosome]
+        controller = FuzzyController(chromosome)
+        total_score = 0
+        while not score.stop_reason:
+            score, perf_data = game.run(scenario=my_test_scenario, controllers=[controller, controller])
+        total_score += score
+        return total_score
+
+    def fuzzy_algorithm():
+        ga = EasyGA.GA()
+        ga.chromosome_length = 1
+        ga.population_size = 10
+        ga.target_fitness_type = 'max'
+        ga.generation_goal = 5
+        ga.fitness_function_impl = fitness
+        ga.gene_impl = lambda: gene_generation()
+        ga.evolve()
+        # best chromosome
+        return [gene.value for gene in ga.population[0]]
+    
     @property
     def name(self) -> str:
         return "Fuzzy Controller"
