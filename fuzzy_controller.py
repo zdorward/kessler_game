@@ -372,3 +372,68 @@ class FuzzyController(KesslerController):
     @property
     def name(self) -> str:
         return "Fuzzy Controller"
+    
+# GA used to optimize thrust values:
+#
+# def generate_chromosome():
+
+#     sorted_nums = np.sort(np.random.randint(-300, 300, 9)).tolist()
+    
+#     backward_thrust = [sorted_nums[0], sorted_nums[1], sorted_nums[2]]
+#     neutral_thrust = [sorted_nums[3], sorted_nums[4], sorted_nums[5]]
+#     forward_thrust = [sorted_nums[6], sorted_nums[7], sorted_nums[8]]
+
+#     chromosome = backward_thrust + neutral_thrust + forward_thrust
+#     return chromosome
+
+# def fitness(chromosome):
+#     try:
+#         my_test_scenario = Scenario(name='Test Scenario',
+#                                     num_asteroids=5,
+#                                     ship_states=[
+#                                         {'position': (400, 400), 'angle': 90, 'lives': 3, 'team': 1},
+#                                     ],
+#                                     map_size=(1000, 800),
+#                                     time_limit=60,
+#                                     ammo_limit_multiplier=0,
+#                                     stop_if_no_ammo=False)
+
+#         game_settings = {'perf_tracker': True,
+#                         'graphics_type': GraphicsType.Tkinter,
+#                         'realtime_multiplier': 1,
+#                         'graphics_obj': None}
+#         game = TrainerEnvironment(settings=game_settings) # Use this for max-speed, no-graphics simulation WITHOUT GRAPHICS
+#         pre = time.perf_counter()
+#         score, perf_data = game.run(scenario=my_test_scenario, controllers = [FuzzyControllerGenetic(chromosome.gene_value_list[0])])
+        
+#         total_asteroids_hit = [team.asteroids_hit for team in score.teams]
+#         print(total_asteroids_hit)
+        
+#         return total_asteroids_hit[0]
+    
+#     except Exception as e:
+#         print(f"Exception in the fitness function: {e}")
+
+# def find_best_thrusts():
+#     ga = EasyGA.GA()
+#     ga.gene_impl = lambda: generate_chromosome()
+#     ga.chromosome_length = 1
+#     ga.population_size = 10
+#     ga.target_fitness_type = 'max'
+#     ga.generation_goal = 2
+#     ga.fitness_function_impl = fitness
+#     ga.evolve()
+
+#     return ga.population[0]
+
+
+# best_thrust_values = find_best_thrusts()
+# print("Best thrust values: ", best_thrust_values)
+
+# # values upon running: [-288, -216, -61, -61, 6, 81, 166, 180, 252]
+# #
+# # leads to the following:
+# #
+# # movement_thrust['backward'] = fuzz.trimf(movement_thrust.universe, [-288, -216, -61])
+# # movement_thrust['none'] = fuzz.trimf(movement_thrust.universe, [-61, 6, 81])
+# # movement_thrust['forward'] = fuzz.trimf(movement_thrust.universe, [166, 180, 252])
