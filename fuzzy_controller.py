@@ -110,27 +110,21 @@ class FuzzyController(KesslerController):
         movement_thrust = ctrl.Consequent(np.arange(-300, 301, 1), 'thrust')  # Thrust range (-200 for backward, 200 for forward)
         mine_distance = ctrl.Antecedent(np.arange(0, 250, 1), 'mine_distance')  # Adjust range as needed
 
-
-        # Define fuzzy sets for distance
         movement_distance['too_close'] = fuzz.zmf(movement_distance.universe, 0, 80)
         movement_distance['safe'] = fuzz.trimf(movement_distance.universe, [80, 100, 130])
         movement_distance['far'] = fuzz.smf(movement_distance.universe, 130, 200)
 
-        # Define fuzzy sets for ship speed
         movement_ship_speed['slow'] = fuzz.zmf(movement_ship_speed.universe, 0, 30)
         movement_ship_speed['moderate'] = fuzz.trimf(movement_ship_speed.universe, [30, 50, 90])
         movement_ship_speed['fast'] = fuzz.smf(movement_ship_speed.universe, 90, 120)
 
-        # Define fuzzy sets for thrust
         movement_thrust['backward'] = fuzz.trimf(movement_thrust.universe, [-300, -300, -150])
         movement_thrust['none'] = fuzz.trimf(movement_thrust.universe, [-150, 0, 150])
         movement_thrust['forward'] = fuzz.trimf(movement_thrust.universe, [150, 300, 300])
 
-        # Define fuzzy sets for mine distance
         mine_distance['close'] = fuzz.zmf(mine_distance.universe, 0, 200)
         mine_distance['far'] = fuzz.smf(mine_distance.universe, 200, 250)
 
-        # Define fuzzy movement rules
         movement_rule1 = ctrl.Rule(movement_distance['too_close'], movement_thrust['backward'])
         movement_rule2 = ctrl.Rule(movement_distance['safe'], movement_thrust['none'])
         movement_rule3 = ctrl.Rule(movement_distance['far'] & movement_ship_speed['slow'] & mine_distance['far'], movement_thrust['forward'])
@@ -138,25 +132,21 @@ class FuzzyController(KesslerController):
         movement_rule5 = ctrl.Rule(movement_ship_speed['fast'], movement_thrust['none'])
         movement_rule6 = ctrl.Rule(mine_distance['close'], movement_thrust['backward'])
 
-        # Create control system and simulation
         movement_control = ctrl.ControlSystem([movement_rule1, movement_rule2, movement_rule3, movement_rule4, movement_rule5, movement_rule6])
         self.movement_sim = ctrl.ControlSystemSimulation(movement_control)
 
 
-        ### INITIALIZE FUZZY SYSTEM FOR DROPPING MINES 
-        # Distance to nearest asteroid
+        ### INITIALIZE FUZZY SYSTEM FOR DROPPING MINES
         distance = ctrl.Antecedent(np.arange(0, 300, 1), 'distance')
         distance['near'] = fuzz.zmf(distance.universe, 0, 70)
         distance['medium'] = fuzz.trimf(distance.universe, [50, 120, 200])
         distance['far'] = fuzz.smf(distance.universe, 150, 300)
 
-        # Relative velocity
         relative_velocity = ctrl.Antecedent(np.arange(-200, 200, 1), 'relative_velocity')
         relative_velocity['approaching'] = fuzz.zmf(relative_velocity.universe, -200, -50)
         relative_velocity['static'] = fuzz.trimf(relative_velocity.universe, [-100, 0, 100])
         relative_velocity['departing'] = fuzz.smf(relative_velocity.universe, 50, 200)
 
-        # Ship speed
         ship_speed = ctrl.Antecedent(np.arange(0, 100, 1), 'ship_speed')
         ship_speed['slow'] = fuzz.zmf(ship_speed.universe, 0, 30)
         ship_speed['medium'] = fuzz.trimf(ship_speed.universe, [20, 50, 80])
@@ -168,19 +158,15 @@ class FuzzyController(KesslerController):
         time_since_mine['medium'] = fuzz.trimf(time_since_mine.universe, [500, 600, 900])
         time_since_mine['long'] = fuzz.trimf(time_since_mine.universe, [800, 1000, 1800])
 
-        # Drop mine decision
         drop_mine = ctrl.Consequent(np.arange(-1, 1, 0.1), 'drop_mine')
         drop_mine['no'] = fuzz.zmf(drop_mine.universe, -1, 0)
         drop_mine['yes'] = fuzz.smf(drop_mine.universe, 0, 1)
 
-        # Number of nearby asteroids
         asteroid_density = ctrl.Antecedent(np.arange(0, 15, 1), 'asteroid_density')
         asteroid_density['low'] = fuzz.zmf(asteroid_density.universe, 0, 4)
         asteroid_density['medium'] = fuzz.trimf(asteroid_density.universe, [1, 8, 11])
         asteroid_density['high'] = fuzz.smf(asteroid_density.universe, 7, 15)
 
-
-        # Mine rules
         mrule1 = ctrl.Rule(distance['near'] & relative_velocity['approaching'], drop_mine['yes'])
         mrule2 = ctrl.Rule(distance['near'] & relative_velocity['static'], drop_mine['yes'])
         mrule3 = ctrl.Rule(distance['medium'] & ship_speed['slow'] | time_since_mine['short'], drop_mine['no'])
@@ -217,27 +203,10 @@ class FuzzyController(KesslerController):
         self.mine_control.addrule(mrule_surrounded3)
 
 
-
     def actions(self, ship_state: Dict, game_state: Dict) -> Tuple[float, float, bool]:
         """
         Method processed each time step by this controller.
         """
-        # These were the constant actions in the basic demo, just spinning and shooting.
-        #thrust = 0 <- How do the values scale with asteroid velocity vector?
-        #turn_rate = 90 <- How do the values scale with asteroid velocity vector?
-        
-        # Answers: Asteroid position and velocity are split into their x,y components in a 2-element ?array each.
-        # So are the ship position and velocity, and bullet position and velocity. 
-        # Units appear to be meters relative to origin (where?), m/sec, m/sec^2 for thrust.
-        # Everything happens in a time increment: delta_time, which appears to be 1/30 sec; this is hardcoded in many places.
-        # So, position is updated by multiplying velocity by delta_time, and adding that to position.
-        # Ship velocity is updated by multiplying thrust by delta time.
-        # Ship position for this time increment is updated after the the thrust was applied.
-        
-
-        # My demonstration controller does not move the ship, only rotates it to shoot the nearest asteroid.
-        # Goal: demonstrate processing of game state, fuzzy controller, intercept computation 
-        # Intercept-point calculation derived from the Law of Cosines, see notes for details and citation.
 
         # Find the closest asteroid (disregards asteroid velocity)
         ship_pos_x = ship_state["position"][0]     # See src/kesslergame/ship.py in the KesslerGame Github
@@ -329,11 +298,8 @@ class FuzzyController(KesslerController):
         else:
             fire = False
                
-        # And return your three outputs to the game simulation. Controller algorithm complete.
         thrust = 0.0
         curr_speed = (ship_state["velocity"][0]**2 + ship_state["velocity"][1]**2)**0.5
-
-        ### movement
 
         # Calculate the distance to the closest mine
         closest_mine_dist = float('inf')  # Initialize to a large value
@@ -348,6 +314,7 @@ class FuzzyController(KesslerController):
         self.movement_sim.input['ship_speed'] = curr_speed
         self.movement_sim.input['mine_distance'] = closest_mine_dist
 
+        # Compute thrust
         try:
             self.movement_sim.compute()
             thrust = self.movement_sim.output['thrust']
@@ -365,7 +332,7 @@ class FuzzyController(KesslerController):
             ship_state["velocity"][1] * closest_asteroid["aster"]["velocity"][1]
         )
         # Define the radius for "nearby" asteroids
-        surround_radius = 75.0  # Adjust based on game scale
+        surround_radius = 75.0 
 
         # Count asteroids within the radius
         nearby_asteroids = sum(
@@ -397,10 +364,7 @@ class FuzzyController(KesslerController):
         except Exception as e:
             print("Error during fuzzy logic computation:", e)
             drop_mine = False  # Fallback if computation fails
-        
-        # print(game_state)
-        #DEBUG
-        # print(thrust, bullet_t, shooting_theta, turn_rate, fire)
+    
         
         return thrust, turn_rate, fire, drop_mine
 
