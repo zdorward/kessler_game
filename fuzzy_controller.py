@@ -16,6 +16,8 @@ import math
 import numpy as np
 import matplotlib as plt
 
+# import EasyGA
+
 class FuzzyController(KesslerController):
     
     def __init__(self):
@@ -201,6 +203,16 @@ class FuzzyController(KesslerController):
         self.mine_control.addrule(mrule_surrounded1)
         self.mine_control.addrule(mrule_surrounded2)
         self.mine_control.addrule(mrule_surrounded3)
+
+        # # ga
+        # ga = EasyGA.GA()
+
+        # # Evolve the genetic algorithm
+        # ga.evolve()
+
+        # # Print your default genetic algorithm
+        # ga.print_generation()
+        # ga.print_population()
 
 
     def actions(self, ship_state: Dict, game_state: Dict) -> Tuple[float, float, bool]:
